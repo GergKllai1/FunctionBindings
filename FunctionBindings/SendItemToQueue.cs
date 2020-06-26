@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -16,22 +17,17 @@ namespace FunctionBindings
 
         [FunctionName("SendItemToQueue")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req)
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
+            ILogger log)
         {
             try
             {
-
+                log.LogDebug("SendItemToQueue function starting ...");
                 // Get the requestBody and deserialize it
                 string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 dynamic deserializedBody = JsonConvert.DeserializeObject(requestBody);
 
-                // Get Text value, create request body
-                var json = JsonConvert.SerializeObject(new { Text = deserializedBody.Text });
-                var data = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var client = new HttpClient();
-
-                var response = await client.PostAsync("http://localhost:7071/api/QueueOutput", data);
+                HttpHelper.CallAzureService("http://localhost:7071/api/ToStorageAccQueue", (string)deserializedBody.Text);
 
                 return new OkObjectResult(requestBody);
             }
@@ -42,10 +38,11 @@ namespace FunctionBindings
         }
 
         // Use output binding to create the table if not created and instert the data
-        [FunctionName("QueueOutput")]
+        [FunctionName("ToStorageAccQueue")]
         [return: Queue("myqueue", Connection = "StorageAccountConnection")]
-        public static string QueueOutput([HttpTrigger] dynamic input)
+        public static string ToStorageAccQueue([HttpTrigger] dynamic input, ILogger log)
         {
+            log.LogDebug($"ToStorageAccQueue function processed {input.Text.Value}");
             return input.Text.Value;
         }
     }
