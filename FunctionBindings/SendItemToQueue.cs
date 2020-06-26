@@ -11,10 +11,10 @@ using System.Threading.Tasks;
 
 namespace FunctionBindings
 {
-    public static class SendItemToTableStorage
+    public static class SendItemToQueue
     {
 
-        [FunctionName("SendItemToTableStorage")]
+        [FunctionName("SendItemToQueue")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req)
         {
@@ -31,7 +31,7 @@ namespace FunctionBindings
 
                 var client = new HttpClient();
 
-                var response = await client.PostAsync("http://localhost:7071/api/TableOutput", data);
+                var response = await client.PostAsync("http://localhost:7071/api/QueueOutput", data);
 
                 return new OkObjectResult(requestBody);
             }
@@ -41,26 +41,12 @@ namespace FunctionBindings
             }
         }
 
-        public class Item
-        {
-            public Item(string text)
-            {
-                Text = text;
-                PartitionKey = "Input";
-                RowKey = Guid.NewGuid().ToString();
-
-            }
-            public string PartitionKey { get; set; }
-            public string RowKey { get; set; }
-            public string Text { get; set; }
-        }
-
         // Use output binding to create the table if not created and instert the data
-        [FunctionName("TableOutput")]
-        [return: Table("MyTable", Connection = "TableStorageConnectionString")]
-        public static Item TableOutput([HttpTrigger] dynamic input)
+        [FunctionName("QueueOutput")]
+        [return: Queue("myqueue", Connection = "StorageAccountConnection")]
+        public static string QueueOutput([HttpTrigger] dynamic input)
         {
-            return new Item(input.Text.Value);
+            return input.Text.Value;
         }
     }
 }
