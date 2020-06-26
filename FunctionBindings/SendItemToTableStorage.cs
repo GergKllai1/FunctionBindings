@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.Extensions.Logging;
-using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -18,22 +16,17 @@ namespace FunctionBindings
 
         [FunctionName("SendItemToTableStorage")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-            ILogger log)
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req)
         {
             try
             {
-                log.LogInformation("SendItemToTableStorage function processed a request.");
 
+                // Get the requestBody and deserialize it
                 string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
                 dynamic deserializedBody = JsonConvert.DeserializeObject(requestBody);
 
-                log.LogInformation($"Item");
-
-                var poco = new MyPoco();
-                poco.Text = deserializedBody.Text;
-
-                var json = JsonConvert.SerializeObject(poco);
+                // Get Text value, create request body
+                var json = JsonConvert.SerializeObject(new { Text = deserializedBody.Text });
                 var data = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var client = new HttpClient();
@@ -48,19 +41,26 @@ namespace FunctionBindings
             }
         }
 
-        public class MyPoco
+        public class Item
         {
+            public Item(string text)
+            {
+                Text = text;
+                PartitionKey = "Input";
+                RowKey = Guid.NewGuid().ToString();
+
+            }
             public string PartitionKey { get; set; }
             public string RowKey { get; set; }
             public string Text { get; set; }
         }
 
+        // Use output binding to create the table if not created and instert the data
         [FunctionName("TableOutput")]
         [return: Table("MyTable", Connection = "TableStorageConnectionString")]
-        public static MyPoco TableOutput([HttpTrigger] dynamic input, ILogger log)
+        public static Item TableOutput([HttpTrigger] dynamic input)
         {
-            log.LogInformation($"C# http trigger function processed: {input.Text}");;
-            return new MyPoco { PartitionKey = "Http", RowKey = Guid.NewGuid().ToString(), Text = input.Text };
+            return new Item(input.Text.Value);
         }
     }
 }
